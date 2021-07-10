@@ -21,12 +21,12 @@ myshelf.add_level(150, [100, 350, 750, 400])
 myshelf.add_level(250, [200, 250, 750, 300])
 myshelf.add_level(350, [300, 150, 250, 350, 300, 350])
 myshelf.add_level(450, [400, 150, 150, 350, 500])
+myshelf.fit_to_height([250, 350, 200, 80, 120, 500])
 
-myshelf.fit()
-
+myshelf.shuffle_levels()
+myshelf.shuffle_compartments()
 print(myshelf)
 
-# myshelf.shuffleLevels()
 
 # lists:
 # heights
