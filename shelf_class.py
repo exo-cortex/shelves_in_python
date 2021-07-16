@@ -6,6 +6,7 @@ from shelf_functions import union
 class Shelf:
 	# constants
 	DEFAULT_THICKNESS = 20
+	DEFAULT_SUB_THICKNESS = 10
 	DEFAULT_WIDTH = 2500
 	DEFAULT_HEIGHT = 2500
 	DEFAULT_MIN_HEIGHT = 100
@@ -16,7 +17,8 @@ class Shelf:
 
 	def __init__(
 		self, 
-		thickness=DEFAULT_THICKNESS, 
+		thickness=DEFAULT_THICKNESS,
+		sub_thickness=DEFAULT_SUB_THICKNESS,
 		fullwidth=DEFAULT_WIDTH,
 		fullheight=DEFAULT_HEIGHT,
 		min_height=DEFAULT_MIN_HEIGHT,
@@ -25,6 +27,7 @@ class Shelf:
 		random_seed=DEFAULT_RANDOM_SEED
 	):
 		self.thickness = thickness
+		self.sub_thickness = sub_thickness
 		self.fullwidth = fullwidth
 		self.fullheight = fullheight
 		self.min_height = min_height
@@ -33,6 +36,7 @@ class Shelf:
 		self.levels = 0 # number of vertical compartments
 		self.level_heights = [] # heights of each vertical compartment
 		self.accumulated_heights = []
+		self.accumulated_widths = []
 		self.level_separators = [] # absolute positions
 		self.compartments = []
 		self.compartment_widths = [] # for each level a list with widths
@@ -51,6 +55,8 @@ class Shelf:
 		self.horizontal_extra_board_coordinates = []
 		self.vertical_board_coordinates = []
 		self.vertical_extra_board_coordinates = []
+		self.per_compartment_horizontal_boards = []
+		self.support_board_coordinates = []
 
 		self.random_seed = random_seed
 		# additional operations
@@ -60,7 +66,7 @@ class Shelf:
 		self.account()
 		output = ""
 		for l in range(self.levels):
-			output += "level {}: height = {:4}, {} compartments: [".format(l, self.level_heights[l], self.compartments[l]) 
+			output += "level {}: height = {:4}, width = {:4}, {} compartments: [".format(l, self.level_heights[l], self.accumulated_widths[l][-1], self.compartments[l]) 
 			for c in range(self.compartments[l]):
 				marker = " "
 				if self.compartment_depths[l][c] == self.extra_depth:
@@ -85,6 +91,17 @@ class Shelf:
 		for height in self.level_heights:
 			y += self.thickness + height
 			self.accumulated_heights += [y]
+
+	def accumulate_widths(self):
+		self.accumulated_widths = []
+		for l in range(self.levels):
+			x = 0
+			accumulated_widths = [x]
+			for width in self.compartment_widths[l]:
+				x += width + self.thickness
+				accumulated_widths += [x]
+			self.accumulated_widths += [accumulated_widths]
+			
 
 	def add_level(self, height, widths: list):
 		if self.not_too_large(self.level_heights + [height], self.fullheight):
@@ -141,12 +158,33 @@ class Shelf:
 			self.compartment_depths[l][c] = self.extra_depth
 			# print("[{}, {}]".format(l, c))
 
+	def compartment_sub_shelf(self, at_what: list=[]):
+		self.per_compartment_horizontal_boards = []
+		print(at_what)
+		for yi, xi, hs in at_what:
+			print(yi, xi, hs)
+			ysub = 0
+			for h in hs:
+				ysub += h
+				sub_LBB = [self.accumulated_widths[yi][xi] + self.thickness, self.accumulated_heights[yi] + ysub, self.thickness]
+				ysub += self.sub_thickness
+				sub_RTF = [self.accumulated_widths[yi][xi + 1], self.accumulated_heights[yi] + ysub, self.depth]
+				self.per_compartment_horizontal_boards += [[sub_LBB, sub_RTF]]
+			# print("start ", self.accumulated_heights[yi], ", height", self.level_heights[yi], width)
+
+
 	def fit(self):
 		self.fit_to_height()
 		self.fit_to_width()
 
 	def not_too_large(self, sizes: list, total_size):
 		return sum(sizes) + (1 + len(sizes)) * self.thickness <= total_size
+
+	def reverse_levels(self):
+		self.level_heights = [h for h in reversed(self.level_heights)]
+		self.compartment_widths = [cw for cw in reversed(self.compartment_widths)]
+		self.compartment_depths = [cd for cd in reversed(self.compartment_depths)]
+		self.compartments = [c for c in reversed(self.compartments)]
 
 	def shuffle_levels(self):
 		indices = list(range(len(self.level_heights)))
@@ -176,8 +214,10 @@ class Shelf:
 			height = self.level_heights[yi]
 			last_depth = self.compartment_depths[yi][0]
 			for xi in range(self.compartments[yi]):
-				v_LBB = [x, y + self.thickness, self.compartment_depths[yi][xi]]
-				v_RTF = [x + self.thickness, y + self.thickness + height, self.compartment_depths[yi][xi]]
+				v_LBB = [x, y + self.thickness, 0]
+				# v_RTF = [x + self.thickness, y + self.thickness + height, self.compartment_depths[yi][xi]]
+				depth = max(last_depth, self.compartment_depths[yi][xi])
+				v_RTF = [x + self.thickness, y + self.thickness + height, depth]
 				# print("next board: ", [[v_LBB, v_RTF]])
 				if self.compartment_depths[yi][xi] == self.extra_depth or last_depth == self.extra_depth:
 					self.vertical_extra_board_coordinates += [[v_LBB, v_RTF]] 
@@ -185,7 +225,7 @@ class Shelf:
 					self.vertical_board_coordinates += [[v_LBB, v_RTF]]
 				last_depth = self.compartment_depths[yi][xi]
 				x += self.compartment_widths[yi][xi] + self.thickness
-			v_LBB = [x, y + self.thickness, last_depth]
+			v_LBB = [x, y + self.thickness, 0]
 			v_RTF = [x + self.thickness, y + self.thickness + height, last_depth]
 			if last_depth == self.extra_depth:
 				self.vertical_extra_board_coordinates += [[v_LBB, v_RTF]] 
@@ -197,6 +237,16 @@ class Shelf:
 		h_LBB = [0, y, 0]
 		h_RTF = [self.fullwidth, y + self.thickness, self.depth]
 		self.horizontal_board_coordinates += [[h_LBB, h_RTF]]
+
+	def make_support_boards(self, at: list=[]):
+		self.accumulate_widths()
+		self.support_board_coordinates = []
+		for yi, xi, dstart, dend in at:
+			s_LBB = [self.accumulated_widths[yi][xi] + self.thickness + dstart, self.accumulated_heights[yi] + self.thickness, 0]
+			s_RTF = [self.accumulated_widths[yi][xi + 1] - dend, self.accumulated_heights[yi + 1], self.thickness]
+			# print([[s_LBB, s_RTF]])
+			self.support_board_coordinates += [[s_LBB, s_RTF]]
+		# print(self.support_board_coordinates)
 
 	def find_combined_extension_intervals(self):
 		level_intervals = []
@@ -225,46 +275,97 @@ class Shelf:
 
 	def make_horizontal_extension_boards(self):
 		for yi, intervals in self.combined_level_intervals:
-			# print(self.accumulated_heights[yi], " - ", intervals)
 			for interval in intervals:
-				# print(i, " interval", interval)
-				# print("first entry: ", interval[0])
-				# if len(interval) > 0:
 				e_LBB = [interval[0], self.accumulated_heights[yi], self.depth]
 				e_RTF = [interval[1], self.accumulated_heights[yi] + self.thickness, self.extra_depth]
-				# print("next board: ", e_LBB, e_RTF)
 				self.horizontal_extra_board_coordinates += [[e_LBB, e_RTF]]
-				# print(self.accumulated_heights[yi], interval)
-		# # print("interval ", intervals)
-		print("extension boards : ", self.horizontal_extra_board_coordinates)
+
+	def material_costs(self):
+		print("extenter schrauben: ", 4 * sum([compartments + 1 for compartments in self.compartments]))
+		# print(self.levels + 1," horizontal boards", (self.leves + 1) * 2.5 * 1.25 * 0.02 )
+		density = 27.5 / (2.500 * 1.250 * 0.02)
+		# print(density)
+		volume = 0
+		weight = 0
+		combined_list = self.horizontal_board_coordinates + self.horizontal_extra_board_coordinates + self.vertical_board_coordinates + self.vertical_extra_board_coordinates + self.support_board_coordinates + self.per_compartment_horizontal_boards
+		for [[xmin, ymin, zmin], [xmax, ymax, zmax]] in combined_list:
+			vol = (xmax - xmin) * (ymax - ymin) * (zmax - zmin)
+			# print("horizontal boards", [[xmin, ymin, zmin], [xmax, ymax, zmax]], vol, vol*density)
+			volume += vol
+			weight += vol * density / 1000000000.0
+		print("volume = ", volume / 1e9, "m^3, weight = ", weight)
+		print("platten [2500x1250x20] ", volume/(2500 * 1250 * 20), "price = ", volume/(2500 * 1250 * 20) * 60)
+		# print(density)
 
 	def write_svg(self, filename: str="shelf.svg"):
 		file = open(filename, "w")
 		svg_header = '<?xml version="1.0" encoding="utf-8" ?>'
 		svg_header += '<svg xmlns="http://www.w3.org/2000/svg" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:xlink="http://www.w3.org/1999/xlink" '
+		padding = 50
 		svg_header += 'baseProfile="tiny" version="1.2" '
-		svg_header += 'width="100%" height="100%" viewBox="{},{},{},{}">'.format(0, 0, self.fullwidth, self.fullheight)
+		svg_header += 'width="100%" height="100%" viewBox="{},{},{},{}">'.format(0 - padding/2, 0 - padding/2, self.fullwidth + padding, self.fullheight + padding)
 		svg_defs = '<defs />'
-
 		file.write(svg_header)
 		file.write(svg_defs)
 
+		def write_grid(col, sw):
+			meter = 1000
+			sub = 100
+			th = sw
+			for i in range(0, self.fullwidth, meter): 
+				th = sw
+				for j in range(0, meter, sub):
+					if j > 0: 
+						th = sw * 0.25
+					file.write('<line x1="{}" y1="{}" x2="{}" y2="{}" stroke="{}" stroke-width="{}" />'.format(i + j, 0, i + j, self.fullheight, col, th))
+			for i in range(0, self.fullheight, meter):
+				th = sw
+				for j in range(0, meter, sub):
+					if j > 0: 
+						th = sw * 0.25
+					file.write('<line x1="{}" y1="{}" x2="{}" y2="{}" stroke="{}" stroke-width="{}" />'.format(0, self.fullheight - i - j, self.fullwidth, self.fullheight - i - j, col, th))
+
+		def write_rec(col, xmin, ymin, xmax, ymax):
+			xleft, xright = xmin, xmax - xmin
+			ylow, ytop = self.fullheight - ymin, self.fullheight - ymax 
+			file.write('<rect fill="{}" x="{}" y="{}" width="{}" height="{}"/>'.format(col, xleft, ytop, xright, ylow - ytop))
+
+		background_color = "#FFFFFF"
+		write_rec(background_color, 0 - padding/2, 0 - padding/2, self.fullwidth + padding, self.fullheight + padding)
+
 		h_color = "#000000"
 		for [[xmin, ymin, zmin],[xmax, ymax, zmax]] in self.horizontal_board_coordinates:
-			file.write('<rect fill="{}" x="{}" y="{}" width="{}" height="{}"/>'.format(h_color, xmin, ymin, xmax - xmin, ymax - ymin))
+			write_rec(h_color, xmin, ymin, xmax, ymax)
 
 		e_color = "#0000ff"
 		for [[xmin, ymin, zmin],[xmax, ymax, zmax]] in self.horizontal_extra_board_coordinates:
-			file.write('<rect fill="{}" x="{}" y="{}" width="{}" height="{}"/>'.format(e_color, xmin, ymin, xmax - xmin, ymax - ymin))
+			write_rec(e_color, xmin, ymin, xmax, ymax)
 
 		v_color = "#000000"
 		for [[xmin, ymin, zmin],[xmax, ymax, zmax]] in self.vertical_board_coordinates:
-			file.write('<rect fill="{}" x="{}" y="{}" width="{}" height="{}"/>'.format(v_color, xmin, ymin, xmax - xmin, ymax - ymin))
+			write_rec(v_color, xmin, ymin, xmax, ymax)
 
 		ve_color = "#0000ff"
 		for [[xmin, ymin, zmin],[xmax, ymax, zmax]] in self.vertical_extra_board_coordinates:
-			file.write('<rect fill="{}" x="{}" y="{}" width="{}" height="{}"/>'.format(ve_color, xmin, ymin, xmax - xmin, ymax - ymin))
+			write_rec(ve_color, xmin, ymin, xmax, ymax)
+
+		s_color = "#FF0000AA"
+		for [[xmin, ymin, zmin],[xmax, ymax, zmax]] in self.support_board_coordinates:
+			write_rec(s_color, xmin, ymin, xmax, ymax)
+
+		sub_color = "#00FF00"
+		for [[xmin, ymin, zmin],[xmax, ymax, zmax]] in self.per_compartment_horizontal_boards:
+			write_rec(sub_color, xmin, ymin, xmax, ymax)
+
+		write_grid("#000000", 4)
 
 		file.write('</svg>')
-
 		file.close()
+
+	def write_cuboids(self):
+		combined_list = self.horizontal_board_coordinates + self.horizontal_extra_board_coordinates + self.vertical_board_coordinates + self.vertical_extra_board_coordinates + self.support_board_coordinates + self.per_compartment_horizontal_boards
+		file = open("cuboids.txt", "w")
+		# print(combined_list)
+		# print(combined_list[0])
+		for [[xmin, ymin, zmin],[xmax, ymax, zmax]] in combined_list:
+			file.write("{}\t{}\t{}\t{}\t{}\t{}\n".format(xmin,ymin,zmin,xmax,ymax,zmax))
