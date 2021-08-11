@@ -12,7 +12,7 @@ class Shelf:
 	DEFAULT_MIN_HEIGHT = 100
 	DEFAULT_DEPTH = 400
 	DEFAULT_EXTRA_DEPTH = 500
-	DEFAULT_DENSITY = 440.0 # 27.5 kg / (2.5 * 1.25 * 0.02) for Elotis Pine
+	DEFAULT_DENSITY = 600.0 # 27.5 kg / (2.5 * 1.25 * 0.02) for Elotis Pine
 	DEFAULT_RANDOM_SEED = 0
 
 	def __init__(
@@ -57,6 +57,9 @@ class Shelf:
 		self.vertical_extra_board_coordinates = []
 		self.per_compartment_horizontal_boards = []
 		self.support_board_coordinates = []
+		self.vertical_boards_sorted = []
+		self.support_board_coordinates_sorted = []
+		self.horizontal_extra_board_coordinates_sorted = []
 
 		self.random_seed = random_seed
 		# additional operations
@@ -66,7 +69,7 @@ class Shelf:
 		self.account()
 		output = ""
 		for l in range(self.levels):
-			output += "level {}: height = {:4}, width = {:4}, {} compartments: [".format(l, self.level_heights[l], self.accumulated_widths[l][-1], self.compartments[l]) 
+			output += "level {}: levelheight = {:4}, height = {:4}, width = {:4}, {} compartments: [".format(l, self.level_heights[l], self.accumulated_heights[l] , self.accumulated_widths[l][-1], self.compartments[l]) 
 			for c in range(self.compartments[l]):
 				marker = " "
 				if self.compartment_depths[l][c] == self.extra_depth:
@@ -87,7 +90,6 @@ class Shelf:
 		self.accumulated_heights = []
 		y = 0
 		self.accumulated_heights += [y]
-		# print(self.level_heights)
 		for height in self.level_heights:
 			y += self.thickness + height
 			self.accumulated_heights += [y]
@@ -100,8 +102,7 @@ class Shelf:
 			for width in self.compartment_widths[l]:
 				x += width + self.thickness
 				accumulated_widths += [x]
-			self.accumulated_widths += [accumulated_widths]
-			
+			self.accumulated_widths += [accumulated_widths]			
 
 	def add_level(self, height, widths: list):
 		if self.not_too_large(self.level_heights + [height], self.fullheight):
@@ -110,13 +111,6 @@ class Shelf:
 				self.compartment_widths += [widths]
 				self.compartment_depths += [[self.depth] * len(widths)]
 		self.account()
-
-	# def add_compartments_at(self, at_level, widths: list):
-	# 	# print(self.compartment_widths[at_level])
-	# 	if self.not_too_large(self.compartment_widths[at_level], widths, self.fullwidth):
-	# 		self.compartment_widths[at_level] += [1]
-	# 		print("lalala", self.compartment_widths[at_level])
-	# 	self.account()
 
 	def fit_to_height(self, widths: list=[]):
 		if sum(self.level_heights) + (2 + len(self.level_heights)) * self.thickness + self.min_height <= self.fullheight:
@@ -150,28 +144,22 @@ class Shelf:
 			for c in range(self.compartments[l]):
 				depth = random.choices([self.depth, self.extra_depth], [1 - p, p])
 				self.compartment_depths[l][c] = depth[0]
-		# print(self.compartment_depths)
+
 
 	def set_extra_depth_at(self, at_index: list=[]):
-		# print(self.compartment_depths)
 		for l, c in at_index:
 			self.compartment_depths[l][c] = self.extra_depth
-			# print("[{}, {}]".format(l, c))
 
 	def compartment_sub_shelf(self, at_what: list=[]):
 		self.per_compartment_horizontal_boards = []
-		print(at_what)
 		for yi, xi, hs in at_what:
-			print(yi, xi, hs)
 			ysub = 0
 			for h in hs:
 				ysub += h
 				sub_LBB = [self.accumulated_widths[yi][xi] + self.thickness, self.accumulated_heights[yi] + ysub, self.thickness]
 				ysub += self.sub_thickness
-				sub_RTF = [self.accumulated_widths[yi][xi + 1], self.accumulated_heights[yi] + ysub, self.depth]
+				sub_RTF = [self.accumulated_widths[yi][xi + 1], self.accumulated_heights[yi] + ysub, self.compartment_depths[yi][xi]]
 				self.per_compartment_horizontal_boards += [[sub_LBB, sub_RTF]]
-			# print("start ", self.accumulated_heights[yi], ", height", self.level_heights[yi], width)
-
 
 	def fit(self):
 		self.fit_to_height()
@@ -208,6 +196,7 @@ class Shelf:
 	def make_boards(self):
 		y = 0
 		for yi in range(self.levels):
+			temp_vertical_boards = []
 			h_LBB = [0, y, 0]
 			h_RTF = [self.fullwidth, y + self.thickness, self.depth]
 			x = 0
@@ -218,11 +207,11 @@ class Shelf:
 				# v_RTF = [x + self.thickness, y + self.thickness + height, self.compartment_depths[yi][xi]]
 				depth = max(last_depth, self.compartment_depths[yi][xi])
 				v_RTF = [x + self.thickness, y + self.thickness + height, depth]
-				# print("next board: ", [[v_LBB, v_RTF]])
 				if self.compartment_depths[yi][xi] == self.extra_depth or last_depth == self.extra_depth:
 					self.vertical_extra_board_coordinates += [[v_LBB, v_RTF]] 
 				else:
 					self.vertical_board_coordinates += [[v_LBB, v_RTF]]
+				temp_vertical_boards += [[v_LBB, v_RTF]]
 				last_depth = self.compartment_depths[yi][xi]
 				x += self.compartment_widths[yi][xi] + self.thickness
 			v_LBB = [x, y + self.thickness, 0]
@@ -231,6 +220,8 @@ class Shelf:
 				self.vertical_extra_board_coordinates += [[v_LBB, v_RTF]] 
 			else:
 				self.vertical_board_coordinates += [[v_LBB, v_RTF]]
+			temp_vertical_boards += [[v_LBB, v_RTF]]
+			self.vertical_boards_sorted += [[yi, temp_vertical_boards]]
 			self.vertical_board_coordinates += [[v_LBB, v_RTF]]
 			self.horizontal_board_coordinates += [[h_LBB, h_RTF]]
 			y += height + self.thickness
@@ -246,6 +237,7 @@ class Shelf:
 			s_RTF = [self.accumulated_widths[yi][xi + 1] - dend, self.accumulated_heights[yi + 1], self.thickness]
 			# print([[s_LBB, s_RTF]])
 			self.support_board_coordinates += [[s_LBB, s_RTF]]
+			self.support_board_coordinates_sorted += [[yi, [[s_LBB, s_RTF]]]]
 		# print(self.support_board_coordinates)
 
 	def find_combined_extension_intervals(self):
@@ -279,11 +271,12 @@ class Shelf:
 				e_LBB = [interval[0], self.accumulated_heights[yi], self.depth]
 				e_RTF = [interval[1], self.accumulated_heights[yi] + self.thickness, self.extra_depth]
 				self.horizontal_extra_board_coordinates += [[e_LBB, e_RTF]]
+				self.horizontal_extra_board_coordinates_sorted += [[yi, [[e_LBB, e_RTF]]]]
 
 	def material_costs(self):
 		print("extenter schrauben: ", 4 * sum([compartments + 1 for compartments in self.compartments]))
 		# print(self.levels + 1," horizontal boards", (self.leves + 1) * 2.5 * 1.25 * 0.02 )
-		density = 27.5 / (2.500 * 1.250 * 0.02)
+		density = 600
 		# print(density)
 		volume = 0
 		weight = 0
@@ -365,7 +358,40 @@ class Shelf:
 	def write_cuboids(self):
 		combined_list = self.horizontal_board_coordinates + self.horizontal_extra_board_coordinates + self.vertical_board_coordinates + self.vertical_extra_board_coordinates + self.support_board_coordinates + self.per_compartment_horizontal_boards
 		file = open("cuboids.txt", "w")
-		# print(combined_list)
-		# print(combined_list[0])
 		for [[xmin, ymin, zmin],[xmax, ymax, zmax]] in combined_list:
 			file.write("{}\t{}\t{}\t{}\t{}\t{}\n".format(xmin,ymin,zmin,xmax,ymax,zmax))
+
+	def list_items(self):
+		count_boards = 0
+		area = 0
+
+		for [[xmin, ymin, zmin],[xmax, ymax, zmax]] in self.horizontal_board_coordinates:
+			print("horizontal board: ", xmax-xmin, "mm x ", zmax-zmin, "mm")
+			count_boards += 1
+			# area += xmax-xmin * zmax-zmin * (1/1000000)
+
+		upto = 3
+		for level, boards in self.horizontal_extra_board_coordinates_sorted:
+			if level < upto:
+				for [xmin, ymin, zmin],[xmax, ymax, zmax] in boards:
+					print("level: ", level, " horizontal extension: ", xmax-xmin, "mm x ", zmax-zmin, "mm")
+					count_boards += 1
+					area += (xmax-xmin) * (zmax-zmin) * (1/1000000)
+
+		# print(self.vertical_boards_sorted)
+		for level, boards in self.vertical_boards_sorted:
+			if level < upto:
+				for [xmin, ymin, zmin],[xmax, ymax, zmax] in boards:
+					print("level: ", level, " board: ", zmax-zmin, "mm x ", ymax-ymin, "mm")
+					count_boards += 1
+					area += (zmax-zmin) * (ymax-ymin) * (1/1000000)
+
+		for level, boards in self.support_board_coordinates_sorted:
+			if level < upto:
+				for [xmin, ymin, zmin],[xmax, ymax, zmax] in boards:
+					print("level: ", level, " supportboard: ", xmax-xmin, "mm x ", ymax-ymin, "mm")
+					count_boards += 1
+					area += (xmax-xmin) * (ymax-ymin) * (1/1000000)
+
+		print("number of boards = ", count_boards, ", costs = ", 0.5 * count_boards)
+		print("area = ", area, ", cost = ", area*33.9)
