@@ -370,9 +370,10 @@ class Shelf:
 			count_boards += 1
 			# area += xmax-xmin * zmax-zmin * (1/1000000)
 
-		upto = 3
+		startfrom = 4
+		upto = 7
 		for level, boards in self.horizontal_extra_board_coordinates_sorted:
-			if level < upto:
+			if startfrom < level < upto:
 				for [xmin, ymin, zmin],[xmax, ymax, zmax] in boards:
 					print("level: ", level, " horizontal extension: ", xmax-xmin, "mm x ", zmax-zmin, "mm")
 					count_boards += 1
@@ -380,14 +381,14 @@ class Shelf:
 
 		# print(self.vertical_boards_sorted)
 		for level, boards in self.vertical_boards_sorted:
-			if level < upto:
+			if startfrom < level < upto:
 				for [xmin, ymin, zmin],[xmax, ymax, zmax] in boards:
 					print("level: ", level, " board: ", zmax-zmin, "mm x ", ymax-ymin, "mm")
 					count_boards += 1
 					area += (zmax-zmin) * (ymax-ymin) * (1/1000000)
 
 		for level, boards in self.support_board_coordinates_sorted:
-			if level < upto:
+			if startfrom < level < upto:
 				for [xmin, ymin, zmin],[xmax, ymax, zmax] in boards:
 					print("level: ", level, " supportboard: ", xmax-xmin, "mm x ", ymax-ymin, "mm")
 					count_boards += 1
@@ -395,3 +396,8 @@ class Shelf:
 
 		print("number of boards = ", count_boards, ", costs = ", 0.5 * count_boards)
 		print("area = ", area, ", cost = ", area*33.9)
+
+
+	def print_widths(self):
+		for widths in self.accumulated_widths:
+			print(widths)

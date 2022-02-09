@@ -12,11 +12,11 @@ myshelf = Shelf(thickness=18, fullwidth=2500, fullheight=2500, depth=400, extra_
 myshelf.add_level(350, [600, 250, 350, 250, 600])
 myshelf.add_level(350, [350, 300, 400, 600])
 myshelf.add_level(120, [200, 350, 300, 120, 450, 400])
-myshelf.add_level(650, [285, 800, 750, 285])
-myshelf.add_level(350, [350, 250, 350, 250, 350, 350])
-myshelf.add_level(400, [200, 200, 500, 250, 400])
+myshelf.add_level(600, [285, 800, 750, 272])
+myshelf.add_level(400, [400, 150, 400, 370, 200, 350])
 
-myshelf.fit_to_height([150, 350, 200, 550, 400])
+
+myshelf.fit_to_height([300, 600, 300, 150, 600])
 myshelf.fit_to_width()
 
 # myshelf.shuffle_compartments()
@@ -33,6 +33,7 @@ myshelf.set_extra_depth_at([
 	[2,1], [2,3], [2,5],
 	[3,0], [3,2], [3,3],
 	[4,2], [4,5],
+	[5,3], [5, 5],
 	])
 
 myshelf.compartment_sub_shelf([
@@ -46,8 +47,8 @@ supportboards = [
 	[2,1,0,100], [2,2,0,100], [2,4,100,0], [2,6,0,200],
 	[3,1,0,100], [3,3,100,0], 
 	[4,0,100,0], [4,3,100,0], [ 4, 5, 0, 100],
-	[5,0,100,0], [5,5,0,200],
-	[6,5,0,200]
+	[5,0,100,0], [5, 2, 0,150], [5,5,0,200],
+	# [6,5,0,200]
 ]
 
 myshelf.make_boards()
@@ -63,3 +64,5 @@ myshelf.write_svg()
 myshelf.write_cuboids()
 
 myshelf.list_items()
+
+myshelf.print_widths()
